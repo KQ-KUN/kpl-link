@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f3f6fb" />
+    <meta name="description" content="KPL Link：寻找 KPL 职业选手之间的最短队友链" />
+    <link rel="icon" type="image/svg+xml" href="./kpl-link.svg" />
+    <script>
+      (() => {
+        const key = "kpl-link:theme";
+        const url = new URL(location.href);
+        const requested = url.searchParams.get("theme");
+        let theme = requested === "light" || requested === "dark" ? requested : null;
+        if (theme) {
+          try { localStorage.setItem(key, theme); } catch {}
+          url.searchParams.delete("theme");
+          history.replaceState(null, "", url.pathname + url.search + url.hash);
+        }
+        if (!theme) {
+          try { theme = localStorage.getItem(key); } catch {}
+        }
+        if (theme !== "light" && theme !== "dark") {
+          theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
+    <link rel="stylesheet" href="./src/styles.css" />
+    <title>KPL Link · 最短队友链</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="返回 KPL Link 首页">
+        <img src="./kpl-link.svg" alt="" />
+        <span><strong>KPL LINK</strong><small>最短队友链</small></span>
+      </a>
+      <nav aria-label="主导航">
+        <a href="/">← 游戏中心</a>
+        <button id="rules-button" class="text-button" type="button">游戏规则</button>
+        <button id="theme-toggle" class="icon-button" type="button" aria-label="切换深色模式">
+          <span class="theme-icon" aria-hidden="true">◐</span><span class="theme-label">深色</span>
+        </button>
+      </nav>
+    </header>
+
+    <main class="page-shell">
+      <section class="intro" aria-labelledby="page-title">
+        <span class="eyebrow">HOW MANY TEAMMATES APART?</span>
+        <h1 id="page-title">寻找最短队友链</h1>
+        <p>两名选手，多少段真实的历史队友关系才能把他们连接起来？</p>
+      </section>
+
+      <section class="game-panel" aria-label="KPL Link 游戏区">
+        <div class="game-toolbar">
+          <div>
+            <span class="toolbar-label">难度</span>
+            <div id="difficulty-options" class="difficulty-options" role="group" aria-label="选择难度"></div>
+          </div>
+          <button id="next-question" class="secondary-button" type="button">换一题</button>
+        </div>
+
+        <div id="loading-state" class="state-panel" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <strong>正在连接 KPL 历史关系网…</strong>
+          <span>载入选手和队友证据</span>
+        </div>
+
+        <div id="error-state" class="state-panel state-panel--error" role="alert" hidden>
+          <strong>关系数据加载失败</strong>
+          <span id="error-message">请检查网络后重试。</span>
+          <button id="retry-load" class="secondary-button" type="button">重新加载</button>
+        </div>
+
+        <div id="game-content" hidden>
+          <div class="mission-copy">
+            <span id="difficulty-badge" class="difficulty-badge">标准</span>
+            <div>
+              <strong>找出最短队友链</strong>
+              <span id="mission-hint">先加入你认为合适的中间选手，再提交验证。</span>
+            </div>
+          </div>
+
+          <div id="path-board" class="path-board" aria-label="当前队友链"></div>
+
+          <div class="game-actions">
+            <button id="submit-path" class="primary-button" type="button">提交路径</button>
+            <button id="clear-path" class="secondary-button" type="button">清空中间选手</button>
+          </div>
+
+          <section id="result-panel" class="result-panel" aria-live="polite" hidden></section>
+        </div>
+      </section>
+
+      <p id="data-note" class="data-note"></p>
+    </main>
+
+    <dialog id="player-dialog" class="dialog-card" aria-labelledby="player-dialog-title">
+      <div class="dialog-header">
+        <div><span class="eyebrow">ADD A LINK</span><h2 id="player-dialog-title">添加中间选手</h2></div>
+        <button id="close-player-dialog" class="icon-button close-button" type="button" aria-label="关闭选手搜索">×</button>
+      </div>
+      <label class="search-field" for="player-search">
+        <span>搜索昵称、英文 ID 或别名</span>
+        <input id="player-search" type="search" autocomplete="off" placeholder="例如：Cat、清融、一诺" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="player-options" />
+      </label>
+      <div id="player-options" class="player-options" role="listbox" aria-label="选手搜索结果"></div>
+      <p id="search-status" class="search-status" aria-live="polite"></p>
+    </dialog>
+
+    <dialog id="rules-dialog" class="dialog-card rules-dialog" aria-labelledby="rules-title">
+      <div class="dialog-header">
+        <div><span class="eyebrow">GAME RULES</span><h2 id="rules-title">游戏规则</h2></div>
+        <button id="close-rules-dialog" class="icon-button close-button" type="button" aria-label="关闭游戏规则">×</button>
+      </div>
+      <ol>
+        <li>系统给出两名 KPL 职业选手，你要补全连接二人的队友链。</li>
+        <li>只有“同一赛事赛季、同一俱乐部一线名单”才算直接队友。</li>
+        <li>路径成立但不是最短时，可以继续修改；答案只会在你主动查看后公布。</li>
+        <li>提交后可展开每一段关系的共同效力证据。</li>
+      </ol>
+      <button id="rules-confirm" class="primary-button" type="button">开始挑战</button>
+    </dialog>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
