@@ -54,12 +54,26 @@ test("difficulty availability follows real graph distances", () => {
   assert.deepEqual(availableDifficulties(graph), ["beginner", "standard", "hard", "archive"]);
 });
 
-test("question generation guarantees a distinct connected pair at the requested distance", () => {
-  for (const [difficulty, expected] of [["standard", 2], ["hard", 3], ["archive", 4]] as const) {
+test("question generation guarantees a distinct connected pair within each distance range", () => {
+  for (const [difficulty, min, max] of [["beginner", 1, 3], ["standard", 2, 2], ["hard", 4, 6], ["archive", 4, 8]] as const) {
     const question = selectQuestion(graph, players, difficulty, () => 0);
     assert.notEqual(question.startId, question.targetId);
-    assert.equal(question.distance, expected);
+    assert.ok(question.distance >= min && question.distance <= max);
   }
+});
+
+test("beginner prefers players with matches in the last two seasons", () => {
+  const datedGraph: LinkGraphData = {
+    ...graph,
+    evidence: {
+      "A|B": [{ teamId: "new", teamName: "新队", seasonId: "KPL2026S1", seasonName: "2026 春" }],
+      "C|D": [{ teamId: "new", teamName: "新队", seasonId: "KPL2025S1", seasonName: "2025 春" }],
+      "D|E": [{ teamId: "old", teamName: "旧队", seasonId: "KPL2019S1", seasonName: "2019 春" }],
+    },
+  };
+  const beginner = selectQuestion(datedGraph, players, "beginner", () => 0);
+  assert.ok(["A", "B", "C", "D"].includes(beginner.startId));
+  assert.ok(["A", "B", "C", "D"].includes(beginner.targetId));
 });
 
 test("any valid shortest route wins instead of matching one stored path", () => {
@@ -131,6 +145,13 @@ test("UI keeps keyboard, live feedback, dialogs, and reduced motion hooks", () =
 test("generated real-data questions remain connected and evidence-backed", () => {
   const realPlayers = JSON.parse(readFileSync(new URL("../public/data/players.json", import.meta.url), "utf8")) as { players: LinkPlayer[] };
   const realGraph = JSON.parse(readFileSync(new URL("../public/data/link_graph.json", import.meta.url), "utf8")) as LinkGraphData;
+  const latest = new Map<string, number>();
+  for (const [edge, proofs] of Object.entries(realGraph.evidence)) {
+    for (const proof of proofs) {
+      const year = Number(proof.seasonId.match(/20\d{2}/)?.[0] ?? 0);
+      for (const id of edge.split("|")) latest.set(id, Math.max(latest.get(id) ?? 0, year));
+    }
+  }
   for (const difficulty of availableDifficulties(realGraph)) {
     const question = selectQuestion(realGraph, realPlayers.players, difficulty, () => 0.5);
     assert.notEqual(question.startId, question.targetId);
@@ -139,5 +160,15 @@ test("generated real-data questions remain connected and evidence-backed", () =>
     assert.ok(path);
     assert.equal(path.length - 1, question.distance);
     assert.equal(validatePath(path, realGraph).valid, true);
+    if (difficulty === "beginner") {
+      assert.ok(question.distance <= 3);
+      assert.ok((latest.get(question.startId) ?? 0) >= 2025);
+      assert.ok((latest.get(question.targetId) ?? 0) >= 2025);
+    }
+    if (difficulty === "hard") assert.ok(question.distance >= 4 && question.distance <= 6);
+    if (difficulty === "archive") {
+      assert.ok((latest.get(question.startId) ?? 0) <= 2021);
+      assert.ok((latest.get(question.targetId) ?? 0) <= 2021);
+    }
   }
 });

@@ -11,9 +11,9 @@ export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
 };
 
 function acceptsDistance(difficulty: Difficulty, distance: number): boolean {
-  if (difficulty === "beginner") return distance === 1 || distance === 2;
+  if (difficulty === "beginner") return distance >= 1 && distance <= 3;
   if (difficulty === "standard") return distance === 2;
-  if (difficulty === "hard") return distance === 3;
+  if (difficulty === "hard") return distance >= 4 && distance <= 6;
   return distance >= 4;
 }
 
@@ -41,28 +41,43 @@ export function selectQuestion(
 ): Question {
   const byId = new Map(players.map((player) => [player.id, player]));
   const qualityIds = players.filter((player) => isQualityCandidate(player, difficulty)).map((player) => player.id);
-  const startIds = qualityIds.length >= 2 ? qualityIds : players.map((player) => player.id);
-  if (!startIds.length) throw new Error("没有可出题的选手");
-  const firstIndex = Math.min(startIds.length - 1, Math.floor(random() * startIds.length));
-  for (let offset = 0; offset < startIds.length; offset += 1) {
-    const startId = startIds[(firstIndex + offset) % startIds.length];
-    if (!startId) continue;
-    const layers = distanceLayers(graph, startId);
-    const candidates: Array<{ id: string; distance: number }> = [];
-    for (const [distance, targets] of layers) {
-      if (!acceptsDistance(difficulty, distance)) continue;
-      for (const targetId of targets) {
-        const target = byId.get(targetId);
-        if (target && (qualityIds.length < 2 || isQualityCandidate(target, difficulty))) {
-          candidates.push({ id: targetId, distance });
+  const latestYear = new Map<string, number>();
+  for (const [edge, proofs] of Object.entries(graph.evidence)) {
+    const ids = edge.split("|");
+    for (const proof of proofs) {
+      const year = Number(proof.seasonId.match(/20\d{2}/)?.[0] ?? 0);
+      for (const id of ids) latestYear.set(id, Math.max(latestYear.get(id) ?? 0, year));
+    }
+  }
+  const preferredIds = qualityIds.filter((id) => {
+    const year = latestYear.get(id) ?? 0;
+    if (difficulty === "beginner") return year >= 2025;
+    if (difficulty === "archive") return year > 0 && year <= 2021;
+    return false;
+  });
+  const pools = preferredIds.length >= 2 ? [preferredIds, qualityIds] : [qualityIds];
+  for (const ids of pools) {
+    const startIds = ids.length >= 2 ? ids : players.map((player) => player.id);
+    if (!startIds.length) throw new Error("没有可出题的选手");
+    const allowed = new Set(startIds);
+    const firstIndex = Math.min(startIds.length - 1, Math.floor(random() * startIds.length));
+    for (let offset = 0; offset < startIds.length; offset += 1) {
+      const startId = startIds[(firstIndex + offset) % startIds.length];
+      if (!startId) continue;
+      const layers = distanceLayers(graph, startId);
+      const candidates: Array<{ id: string; distance: number }> = [];
+      for (const [distance, targets] of layers) {
+        if (!acceptsDistance(difficulty, distance)) continue;
+        for (const targetId of targets) {
+          if (byId.has(targetId) && allowed.has(targetId)) candidates.push({ id: targetId, distance });
         }
       }
-    }
-    if (candidates.length) {
-      const targetIndex = Math.min(candidates.length - 1, Math.floor(random() * candidates.length));
-      const target = candidates[targetIndex];
-      if (!target) throw new Error("题目生成失败");
-      return { startId, targetId: target.id, distance: target.distance, difficulty };
+      if (candidates.length) {
+        const targetIndex = Math.min(candidates.length - 1, Math.floor(random() * candidates.length));
+        const target = candidates[targetIndex];
+        if (!target) throw new Error("题目生成失败");
+        return { startId, targetId: target.id, distance: target.distance, difficulty };
+      }
     }
   }
   throw new Error(`没有可用的${DIFFICULTY_LABELS[difficulty]}题目`);
