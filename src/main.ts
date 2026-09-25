@@ -6,6 +6,10 @@ import { setupTheme } from "./theme.ts";
 import type { Difficulty, LinkGraphData, LinkPlayer, PlayersData, Question } from "./types.ts";
 import { avatarMarkup, escapeHtml, evidenceMarkup, installAvatarFallbacks, playerMeta } from "./ui.ts";
 
+function trackEvent(event: "link-start" | "link-complete" | "link-reveal" | "link-restart"): void {
+  (window as Window & { KPLAnalytics?: { trackEvent: (name: string) => void } }).KPLAnalytics?.trackEvent(event);
+}
+
 function required<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
   if (!element) throw new Error(`缺少页面元素：${selector}`);
@@ -75,12 +79,12 @@ function renderDifficulties(): void {
       if (selected === currentDifficulty) return;
       currentDifficulty = selected;
       renderDifficulties();
-      newQuestion();
+      newQuestion(true);
     });
   });
 }
 
-function newQuestion(): void {
+function newQuestion(restart = false): void {
   if (!graph || !players.length) return;
   nextButton.disabled = true;
   try {
@@ -96,6 +100,8 @@ function newQuestion(): void {
     resetFeedback();
     difficultyBadge.textContent = DIFFICULTY_LABELS[currentDifficulty];
     renderPath();
+    if (restart) trackEvent("link-restart");
+    trackEvent("link-start");
   } catch (error) {
     showLoadError(error);
   } finally {
@@ -237,10 +243,11 @@ function handleResultAction(action: string): void {
     resetFeedback();
     renderPath();
   } else if (action === "reveal") {
+    if (!revealedPath) trackEvent("link-reveal");
     revealedPath = shortestPath(graph, question.startId, question.targetId);
     renderResult();
   } else if (action === "next") {
-    newQuestion();
+    newQuestion(true);
   } else if (action === "copy" && submission && submission.kind !== "invalid") {
     const text = `KPL LINK\n${Array.from({ length: submission.shortest + 1 }, () => "●").join(" ─ ")}\n最短距离：${submission.shortest}\n尝试：${attempts}\n${revealedPath ? "ANSWER VIEWED" : submission.kind === "shortest" ? "🏆 PERFECT" : "LINK COMPLETE"}`;
     navigator.clipboard.writeText(text).then(
@@ -252,8 +259,10 @@ function handleResultAction(action: string): void {
 
 function submitPath(): void {
   if (!graph || !question) return;
+  const alreadyComplete = submission?.kind === "shortest";
   attempts += 1;
   submission = evaluateSubmission(currentPath, graph);
+  if (submission.kind === "shortest" && !alreadyComplete) trackEvent("link-complete");
   revealedPath = null;
   if (submission.kind !== "invalid") {
     missionHint.textContent = `本题理论最短距离为 ${submission.shortest} 跳。`;
@@ -340,7 +349,7 @@ clearButton.addEventListener("click", () => {
   resetFeedback();
   renderPath();
 });
-nextButton.addEventListener("click", newQuestion);
+nextButton.addEventListener("click", () => newQuestion(true));
 retryButton.addEventListener("click", () => void loadGame());
 playerSearch.addEventListener("input", () => { activeSuggestion = -1; renderSuggestions(); });
 playerSearch.addEventListener("keydown", (event) => {
