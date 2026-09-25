@@ -277,7 +277,7 @@ function renderSuggestions(): void {
   visibleSuggestions = searchPlayers(players, playerSearch.value).filter((player) => !excluded.has(player.id));
   if (activeSuggestion >= visibleSuggestions.length) activeSuggestion = visibleSuggestions.length - 1;
   playerOptions.innerHTML = visibleSuggestions.map((player, index) => `
-    <button type="button" id="player-option-${index}" class="player-option${index === activeSuggestion ? " is-active" : ""}" role="option" aria-selected="${index === activeSuggestion}" data-player-id="${player.id}">
+    <button type="button" id="player-option-${index}" class="player-option${index === activeSuggestion ? " is-active" : ""}" role="option" aria-selected="${index === activeSuggestion}" data-player-id="${escapeHtml(player.id)}">
       ${avatarMarkup(player, "search-avatar")}
       <span><strong>${escapeHtml(player.name)}</strong><small>${escapeHtml(playerMeta(player))}</small></span>
       <b aria-hidden="true">＋</b>
