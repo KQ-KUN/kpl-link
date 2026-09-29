@@ -53,3 +53,36 @@ button:disabled { opacity:1; background:var(--color-active); border-color:var(--
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; animation:none!important; scroll-behavior:auto!important; } }
 
 :root[data-theme="dark"] .brand img { filter:brightness(1.8); }
+
+@media (max-width:767px) {
+  .site-header { min-height:0; padding:8px 0; gap:4px; }
+  .brand img { display:none; }
+  .site-header nav { width:100%; gap:4px; justify-content:flex-start; }
+  .site-header nav > :is(a,button) { padding-inline:8px; }
+  .page-shell { padding:12px 0 16px; }
+  .intro { margin-bottom:16px; }
+  .intro h1 { margin:0; font-size:28px; }
+  .intro p { margin-top:4px; font-size:14px; line-height:1.5; }
+  .game-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; padding:8px; }
+  .game-toolbar > div { min-width:0; }
+  .toolbar-label { display:none; }
+  .difficulty-options { display:grid; width:100%; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; }
+  .difficulty-option { min-width:0; padding-inline:4px; font-size:14px; }
+  #next-question { padding-inline:8px; font-size:14px; }
+  #game-content { padding:12px; }
+  .mission-copy { justify-content:flex-start; gap:8px; margin-bottom:12px; }
+  .mission-copy strong { display:none; }
+  .mission-copy div > span { margin:0; font-size:14px; line-height:1.5; }
+  .path-board { padding-bottom:8px; }
+  .path-board .path-node, .path-board .path-edge { min-height:156px; }
+  .path-node { padding:8px; }
+  .path-board .player-avatar { width:48px; height:48px; }
+  .node-copy strong { margin-top:8px; font-size:18px; }
+  .path-board .node-copy span { min-height:0; margin-top:4px; line-height:1.4; }
+  .endpoint-label { margin-top:8px; padding:2px 6px; }
+  .game-actions { position:static; margin-top:8px; padding:8px 0 0; gap:8px; }
+  .game-actions > button { padding-inline:8px; font-size:16px; }
+  .data-note { margin:12px 0 0; font-size:14px; line-height:1.5; text-align:left; }
+  .dialog-card { max-height:calc(100dvh - 32px); padding:16px; }
+  .dialog-header .eyebrow { display:none; }
+}
