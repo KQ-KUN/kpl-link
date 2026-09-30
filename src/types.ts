@@ -20,6 +20,8 @@ export interface LinkEvidence {
   teamName: string;
   seasonId: string;
   seasonName: string;
+  provider?: string;
+  sourceUrls?: string[];
 }
 
 export interface GraphStats {
@@ -51,6 +53,16 @@ export interface LinkGraphData {
     attributionRecords: number;
     unmappedRecords: number;
     unmappedReason: string;
+    historical?: {
+      events: number;
+      matches: number;
+      missingLineups: number;
+      reviewedIdentities: number;
+      teammatePairs: number;
+      excludedIdentities: Array<{ providerId: string; names: string[] }>;
+      complete: boolean;
+      provider: string;
+    };
   };
 }
 

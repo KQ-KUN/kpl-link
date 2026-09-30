@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { isTeammate, neighbors, shortestDistance, shortestPath, validatePath } from "../src/graph.ts";
 import type { LinkGraphData } from "../src/types.ts";
 
@@ -54,4 +55,20 @@ test("path validation reports every broken segment by index", () => {
       { index: 1, from: "D", to: "X" },
     ],
   });
+});
+
+test("real snapshot accepts Cat and Fly as direct historical teammates", () => {
+  const realGraph = JSON.parse(readFileSync(new URL("../public/data/link_graph.json", import.meta.url), "utf8")) as LinkGraphData;
+  const players = JSON.parse(readFileSync(new URL("../public/data/players.json", import.meta.url), "utf8")) as {
+    players: Array<{ id: string; name: string }>;
+  };
+  const cat = players.players.find((player) => player.name === "Cat")?.id;
+  const fly = players.players.find((player) => player.name === "Fly")?.id;
+  assert.ok(cat && fly);
+  assert.equal(isTeammate(realGraph, cat, fly), true);
+  assert.equal(isTeammate(realGraph, fly, cat), true);
+  assert.equal(shortestDistance(realGraph, cat, fly), 1);
+  assert.deepEqual(validatePath([cat, fly], realGraph), { valid: true, brokenSegments: [] });
+  const proofs = realGraph.evidence[[cat, fly].sort().join("|")];
+  assert.ok(proofs?.some((proof) => proof.teamName === "QGhappy" && proof.seasonId === "KPL2017S1"));
 });
