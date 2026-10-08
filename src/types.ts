@@ -53,6 +53,13 @@ export interface LinkGraphData {
     attributionRecords: number;
     unmappedRecords: number;
     unmappedReason: string;
+    registeredRoster?: {
+      seasonId: string;
+      teams: number;
+      players: number;
+      teammatePairs: number;
+      sourceUrl: string;
+    };
     historical?: {
       events: number;
       matches: number;

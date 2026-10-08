@@ -72,3 +72,22 @@ test("real snapshot accepts Cat and Fly as direct historical teammates", () => {
   const proofs = realGraph.evidence[[cat, fly].sort().join("|")];
   assert.ok(proofs?.some((proof) => proof.teamName === "QGhappy" && proof.seasonId === "KPL2017S1"));
 });
+
+test("annual registered teammates include loans and reserves", () => {
+  const snapshot = JSON.parse(readFileSync(new URL("../public/data/link_graph.json", import.meta.url), "utf8")) as LinkGraphData;
+  const players = JSON.parse(readFileSync(new URL("../public/data/players.json", import.meta.url), "utf8")) as {
+    players: Array<{ id: string; name: string; recentTeamId: string }>;
+  };
+  for (const [left, right, teamId] of [["Fly", "清清", "10001"], ["晚星", "梦岚", "10005"]]) {
+    const a = players.players.find((p) => p.name === left);
+    const b = players.players.find((p) => p.name === right);
+    assert.ok(a && b);
+    assert.equal(a.recentTeamId, teamId);
+    assert.equal(b.recentTeamId, teamId);
+    assert.equal(shortestDistance(snapshot, a.id, b.id), 1);
+    const proofs = snapshot.evidence[[a.id, b.id].sort().join("|")];
+    assert.ok(proofs?.some((p) => p.seasonId === "KPL2026S3" && p.teamId === teamId && p.sourceUrls?.length));
+  }
+  const registered = Object.values(snapshot.evidence).flat().filter((p) => p.seasonId === "KPL2026S3");
+  assert.equal(registered.length, 252);
+});

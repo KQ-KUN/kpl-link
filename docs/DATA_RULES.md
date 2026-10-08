@@ -1,5 +1,7 @@
 # KPL Link 数据规则
 
+2026 年总使用 KPL 官方于 2026-09-21 公布的完整 12 队、84 人注册名单，canonical 输入为 `data/curated/official_rosters_2026_annual.json`。同队注册的七人（含替补、租借）产生 21 对关系，12 队合计 252 条本届证据；报名关系与实际出场关系分开保存，`provider` 为 `KPL official registered roster`，来源保留官方公告与原图。已知选手仍使用 canonical ID；小团、月月使用官方 `openid`，未公开统计身份的月秋使用明确隔离的注册身份，不因昵称相同归入别人。注册事实不生成比赛战绩或评分。
+
 KPL Link 不维护独立人物事实库。构建脚本读取仓库现有的 `data/processed/players.json`（稳定选手 ID）、`player_attribution.json`（逐赛季实战归属）、`seasons.json`、`franchises.json` 和 `player_icon_cache.json`，从 KPL Guessing 快照复用别名、位置、活跃度与热度分层，并接入 `data/curated/wanplus_K*.json` 的早期逐局阵容及 `wanplus_identity_map.json` 的已审查身份映射。
 
 2019 年及以后的关系，仅在两名选手的实战归属记录拥有完全相同的 `season_id` 和 `franchise_id` 时生成。仅仅先后效力于同一俱乐部不会产生边。每条边保存全部共同效力赛季证据，前端不在运行时从队名推断关系。`players.json` 的 `teams` 字段可能把后来的俱乐部归属带回早期赛季，因此不用于建边。
