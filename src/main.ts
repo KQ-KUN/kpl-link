@@ -50,6 +50,9 @@ let startedAt = Date.now();
 let insertionIndex = 0;
 let visibleSuggestions: LinkPlayer[] = [];
 let activeSuggestion = -1;
+// Feedback can be reset while staying on the same question; analytics cannot.
+let completedTracked = false;
+let revealTracked = false;
 
 function getPlayer(playerId: string): LinkPlayer {
   const player = playerById.get(playerId);
@@ -93,6 +96,7 @@ function newQuestion(restart = false): void {
       next = selectQuestion(graph, players, currentDifficulty);
     }
     question = next;
+    completedTracked = revealTracked = false;
     lastQuestionKey = `${next.startId}|${next.targetId}`;
     currentPath = [next.startId, next.targetId];
     attempts = 0;
@@ -243,7 +247,7 @@ function handleResultAction(action: string): void {
     resetFeedback();
     renderPath();
   } else if (action === "reveal") {
-    if (!revealedPath) trackEvent("link-reveal");
+    if (!revealTracked) { revealTracked = true; trackEvent("link-reveal"); }
     revealedPath = shortestPath(graph, question.startId, question.targetId);
     renderResult();
   } else if (action === "next") {
@@ -259,10 +263,11 @@ function handleResultAction(action: string): void {
 
 function submitPath(): void {
   if (!graph || !question) return;
-  const alreadyComplete = submission?.kind === "shortest";
   attempts += 1;
   submission = evaluateSubmission(currentPath, graph);
-  if (submission.kind === "shortest" && !alreadyComplete) trackEvent("link-complete");
+  if (submission.kind === "shortest" && !completedTracked) {
+    completedTracked = true; trackEvent("link-complete");
+  }
   revealedPath = null;
   if (submission.kind !== "invalid") {
     missionHint.textContent = `本题理论最短距离为 ${submission.shortest} 跳。`;
