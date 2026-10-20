@@ -1,0 +1,2 @@
+# Snapshot checksums describe exact emitted bytes on every checkout platform.
+public/data/*.json -text
