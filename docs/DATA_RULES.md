@@ -14,4 +14,10 @@ KPL Link 不维护独立人物事实库。构建脚本读取仓库现有的 `dat
 
 早期身份仅采用已审查的来源 ID 映射，绝不因昵称相同自动合并。例如 2016 年仙阁“小羽”不能归到较晚出道的同名选手。`sourceAudit.historical` 保存历史比赛量、缺阵容数量、已审查身份数与未映射来源身份清单；`complete: false` 表示历史证据仍不完整，缺边不能据此解释为“从未做过队友”。
 
-运行 `.venv\Scripts\python.exe tools\build_link_graph.py` 重新生成 `link/public/data/players.json` 与 `link/public/data/link_graph.json`。头像生成到本游戏的 `./assets/player-icons/` 路径，按稳定 ID 优先选择，避免构建时顺序不确定。随后运行 `.venv\Scripts\python.exe tools\validate_link_graph.py` 检查对称性、自环、证据、版本、统计值，以及源数据到快照的完整一致性。`tools/test_link_graph.py` 另从原始逐局记录独立重建历史关系和来源集合，覆盖遗漏、错队、同名、别名与无阵容情况。
+显式维护命令示例：`python <kpl2k>/tools/build_link_graph.py --snapshot-source <冻结数据目录> --output <link>/public/data --source-commit <冻结消费仓库完整SHA>`。源目录必须是包含完整 evidence 的原快照，不能把已拆分的 runtime 图重复当原始全图。全量重建另用 `--source <canonical根目录> --quiz-data <quiz_players.json> --quiz-config <quiz.json> --quiz-source-commit <竞猜输入完整SHA> --output <link>/public/data --source-commit <canonical完整SHA>`，不能使用隐式相邻目录。当前这一轮仅派生 d8cf8c847cb9b91bdaeaa814da6c28816557027b 冻结 Link 快照，未全量重建或更新任何人物/队友事实。
+
+dataVersion 使用 `source:<完整SHA>`，旧日期只保留为 sourceAudit.legacyDataVersion，不代表本轮新增事实。manifest inputs 为来源仓库相对路径、来源 commit 与文件 SHA256，不包含用户机器目录；outputs 为本仓相对路径。schemaVersion、sourceCommit、inputs、outputs、generatedAt、coverage、exclusionRules、generator 是共用字段。输入来源是冻结消费快照，原始采集链缺口不能因补 manifest 而视为已解决。
+
+运行快照为 players.json、link_graph.json（adjacency/stats/sourceAudit/latestYear）和 link_evidence.json。三个文件保留相同 dataVersion，manifest.json 记录真实 sourceCommit、输入hash、最终输出hash/bytes、生成器脚本hash和覆盖范围；最终头像路径不变后才计算hash。浏览器启动仅载 manifest+players+runtime，校验SHA与版本后才开放入口；详细证据只在查看共同效力依据或答案时加载，singleflight共享成功/在途结果，失败清除请求允许重试，绝不丢当前路径。BFS与出题只读轻量图和构建期 latestYear，不在出题时遍历 evidence。
+
+latestYear 为每个ID证据中最大赛季年份，无可识别年份为 null；totalGames 是冻结源出场数，不能从图度数推导。当前748个稳定ID、4762边、9369条证据保持；18个无头像选手保留缺失，54条未映射归属仍排除，不自动补图或猜身份。历史 complete=false 继续保留。生成器检查ID/边对称/证据映射，测试独立对照冻结事实、latestYear与最终asset hash；真实浏览器验证按需加载失败重试和键盘焦点，不能用静态检查冒充浏览器或线上验收。

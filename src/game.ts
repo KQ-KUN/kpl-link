@@ -41,16 +41,8 @@ export function selectQuestion(
 ): Question {
   const byId = new Map(players.map((player) => [player.id, player]));
   const qualityIds = players.filter((player) => isQualityCandidate(player, difficulty)).map((player) => player.id);
-  const latestYear = new Map<string, number>();
-  for (const [edge, proofs] of Object.entries(graph.evidence)) {
-    const ids = edge.split("|");
-    for (const proof of proofs) {
-      const year = Number(proof.seasonId.match(/20\d{2}/)?.[0] ?? 0);
-      for (const id of ids) latestYear.set(id, Math.max(latestYear.get(id) ?? 0, year));
-    }
-  }
   const preferredIds = qualityIds.filter((id) => {
-    const year = latestYear.get(id) ?? 0;
+    const year = graph.latestYear?.[id] ?? 0;
     if (difficulty === "beginner") return year >= 2025;
     if (difficulty === "archive") return year > 0 && year <= 2021;
     return false;

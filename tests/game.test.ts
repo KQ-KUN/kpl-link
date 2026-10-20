@@ -1,3 +1,4 @@
+import { fullGraph } from './snapshot-fixture.ts';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -144,7 +145,7 @@ test("UI keeps keyboard, live feedback, dialogs, and reduced motion hooks", () =
 
 test("generated real-data questions remain connected and evidence-backed", () => {
   const realPlayers = JSON.parse(readFileSync(new URL("../public/data/players.json", import.meta.url), "utf8")) as { players: LinkPlayer[] };
-  const realGraph = JSON.parse(readFileSync(new URL("../public/data/link_graph.json", import.meta.url), "utf8")) as LinkGraphData;
+  const realGraph = fullGraph();
   const latest = new Map<string, number>();
   for (const [edge, proofs] of Object.entries(realGraph.evidence)) {
     for (const proof of proofs) {

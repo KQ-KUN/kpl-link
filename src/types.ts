@@ -47,7 +47,8 @@ export interface LinkGraphData {
   dataVersion: string;
   rule: string;
   adjacency: Record<string, string[]>;
-  evidence: Record<string, LinkEvidence[]>;
+  evidence?: Record<string, LinkEvidence[]>;
+  latestYear?: Record<string, number | null>;
   stats: GraphStats;
   sourceAudit?: {
     attributionRecords: number;

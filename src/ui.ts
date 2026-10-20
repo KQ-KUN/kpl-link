@@ -45,7 +45,7 @@ export function evidenceMarkup(
     const leftId = path[index];
     const rightId = path[index + 1];
     if (leftId === undefined || rightId === undefined) continue;
-    const proofs = graph.evidence[edgeKey(leftId, rightId)] ?? [];
+    const proofs = graph.evidence?.[edgeKey(leftId, rightId)] ?? [];
     if (!proofs.length) continue;
     const left = players.get(leftId);
     const right = players.get(rightId);

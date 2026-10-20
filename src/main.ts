@@ -3,6 +3,7 @@ import { isTeammate, shortestPath } from "./graph.ts";
 import { planPathLayout } from "./path-layout.ts";
 import { searchPlayers } from "./search.ts";
 import { setupTheme } from "./theme.ts";
+import { loadSnapshot, type EvidenceData } from './snapshot.ts';
 import type { Difficulty, LinkGraphData, LinkPlayer, PlayersData, Question } from "./types.ts";
 import { avatarMarkup, escapeHtml, evidenceMarkup, installAvatarFallbacks, playerMeta } from "./ui.ts";
 
@@ -50,6 +51,11 @@ let startedAt = Date.now();
 let insertionIndex = 0;
 let visibleSuggestions: LinkPlayer[] = [];
 let activeSuggestion = -1;
+let evidenceData: EvidenceData | null = null;
+let loadEvidence: (() => Promise<EvidenceData>) | null = null;
+let evidenceRequested = false, evidenceLoading = false, evidenceError = '';
+let loadPending: Promise<void> | null = null;
+let searchInvoker: HTMLElement | null = null;
 // Feedback can be reset while staying on the same question; analytics cannot.
 let completedTracked = false;
 let revealTracked = false;
@@ -61,6 +67,7 @@ function getPlayer(playerId: string): LinkPlayer {
 }
 
 function resetFeedback(): void {
+  evidenceRequested = false; evidenceError = '';
   submission = null;
   revealedPath = null;
   resultPanel.hidden = true;
@@ -174,9 +181,11 @@ function renderPath(): void {
   });
   pathBoard.querySelectorAll<HTMLButtonElement>("button[data-remove-index]").forEach((button) => {
     button.addEventListener("click", () => {
-      currentPath.splice(Number(button.dataset.removeIndex), 1);
+      const index = Number(button.dataset.removeIndex);
+      currentPath.splice(index, 1);
       resetFeedback();
       renderPath();
+      pathBoard.querySelector<HTMLElement>(`[data-insert-index="${Math.min(index, currentPath.length - 1)}"]`)?.focus();
     });
   });
   clearButton.disabled = currentPath.length <= 2;
@@ -211,13 +220,13 @@ function renderResult(): void {
       const to = getPlayer(segment.to).name;
       return `<p class="broken-copy"><strong>${escapeHtml(from)} 与 ${escapeHtml(to)}</strong>没有有效的历史队友关系。</p>`;
     }).join("");
-    detail += evidenceMarkup(currentPath, graph, playerById, broken);
+    if (evidenceRequested && evidenceData) detail += evidenceMarkup(currentPath, { ...graph, evidence: evidenceData.evidence }, playerById, broken);
     actions = revealedPath
       ? '<button class="primary-button" data-action="next" type="button">下一题</button>'
       : '<button class="secondary-button" data-action="continue" type="button">继续修改</button><button class="danger-button" data-action="reveal" type="button">查看答案</button><button class="secondary-button" data-action="next" type="button">下一题</button>';
   } else {
     metrics = `<div class="result-metrics"><span>你的路径<strong>${submission.distance} 跳</strong></span><span>理论最短<strong>${submission.shortest} 跳</strong></span><span>尝试次数<strong>${attempts}</strong></span></div>`;
-    detail = evidenceMarkup(currentPath, graph, playerById);
+    detail = evidenceRequested && evidenceData ? evidenceMarkup(currentPath, { ...graph, evidence: evidenceData.evidence }, playerById) : '';
     if (submission.kind === "valid-long" && !revealedPath) {
       actions = '<button class="secondary-button" data-action="continue" type="button">继续挑战</button><button class="danger-button" data-action="reveal" type="button">查看最短路径</button><button class="secondary-button" data-action="next" type="button">下一题</button>';
     } else if (revealedPath) {
@@ -230,8 +239,9 @@ function renderResult(): void {
 
   if (revealedPath) {
     const names = revealedPath.map((playerId) => escapeHtml(getPlayer(playerId).name));
-    detail = `<section class="answer-path"><span>一个最短答案</span><strong>${names.join(" <i aria-hidden=\"true\">→</i> ")}</strong></section>${evidenceMarkup(revealedPath, graph, playerById)}${scoreCard(revealedPath.length - 1, true)}`;
+    detail = `<section class="answer-path"><span>一个最短答案</span><strong>${names.join(" <i aria-hidden=\"true\">→</i> ")}</strong></section>${evidenceData ? evidenceMarkup(revealedPath, { ...graph, evidence: evidenceData.evidence }, playerById) : ''}${scoreCard(revealedPath.length - 1, true)}`;
   }
+  if (!evidenceRequested || !evidenceData) detail += `<p role="status">${escapeHtml(evidenceError || (evidenceLoading ? '正在加载详细证据…' : '详细共同效力记录按需加载。'))}</p><button type="button" class="secondary-button" data-action="evidence"${evidenceLoading ? ' disabled' : ''}>${evidenceError ? '重试加载证据' : '查看共同效力依据'}</button>`;
 
   resultPanel.className = `result-panel result-panel--${submission.kind}`;
   resultPanel.innerHTML = `<div class="result-heading">${resultHeader(submission.kind)}</div>${metrics}${detail}<div class="result-actions">${actions}</div><p id="copy-status" class="copy-status" aria-live="polite"></p>`;
@@ -250,6 +260,9 @@ function handleResultAction(action: string): void {
     if (!revealTracked) { revealTracked = true; trackEvent("link-reveal"); }
     revealedPath = shortestPath(graph, question.startId, question.targetId);
     renderResult();
+    void requestEvidence();
+  } else if (action === "evidence") {
+    void requestEvidence();
   } else if (action === "next") {
     newQuestion(true);
   } else if (action === "copy" && submission && submission.kind !== "invalid") {
@@ -259,6 +272,15 @@ function handleResultAction(action: string): void {
       () => { const status = document.querySelector<HTMLElement>("#copy-status"); if (status) status.textContent = "复制失败，请直接截图成绩卡。"; },
     );
   }
+}
+
+async function requestEvidence(): Promise<void> {
+  if (!loadEvidence) return;
+  const requestedQuestion = question;
+  evidenceRequested = true; evidenceLoading = true; evidenceError = ''; renderResult();
+  try { evidenceData = await loadEvidence(); }
+  catch (error) { if (question === requestedQuestion) evidenceError = error instanceof Error ? error.message : '详细证据暂不可用，可以重试'; }
+  finally { evidenceLoading = false; if (question === requestedQuestion && submission) renderResult(); }
 }
 
 function submitPath(): void {
@@ -278,6 +300,7 @@ function submitPath(): void {
 }
 
 function openPlayerSearch(index: number): void {
+  searchInvoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   insertionIndex = index;
   playerSearch.value = "";
   activeSuggestion = -1;
@@ -297,13 +320,19 @@ function renderSuggestions(): void {
       <b aria-hidden="true">＋</b>
     </button>`).join("");
   installAvatarFallbacks(playerOptions);
-  playerSearch.setAttribute("aria-expanded", String(visibleSuggestions.length > 0));
-  if (activeSuggestion >= 0) playerSearch.setAttribute("aria-activedescendant", `player-option-${activeSuggestion}`);
-  else playerSearch.removeAttribute("aria-activedescendant");
+  updateActiveSuggestion();
   searchStatus.textContent = visibleSuggestions.length ? `共 ${visibleSuggestions.length} 位可选选手 · 滚动浏览或输入昵称搜索` : "没有找到可添加的选手";
-  playerOptions.querySelectorAll<HTMLButtonElement>("button[data-player-id]").forEach((button) => {
-    button.addEventListener("click", () => choosePlayer(button.dataset.playerId ?? ""));
-  });
+}
+
+function updateActiveSuggestion(): void {
+  playerOptions.querySelector<HTMLElement>('.is-active')?.classList.remove('is-active');
+  playerOptions.querySelector<HTMLElement>('[aria-selected="true"]')?.setAttribute('aria-selected', 'false');
+  playerSearch.setAttribute('aria-expanded', String(visibleSuggestions.length > 0));
+  const active = activeSuggestion >= 0 ? document.getElementById(`player-option-${activeSuggestion}`) : null;
+  if (active) {
+    active.classList.add('is-active'); active.setAttribute('aria-selected', 'true');
+    playerSearch.setAttribute('aria-activedescendant', active.id); active.scrollIntoView({ block: 'nearest' });
+  } else playerSearch.removeAttribute('aria-activedescendant');
 }
 
 function choosePlayer(playerId: string): void {
@@ -312,6 +341,7 @@ function choosePlayer(playerId: string): void {
   playerDialog.close();
   resetFeedback();
   renderPath();
+  pathBoard.querySelector<HTMLElement>(`[data-remove-index="${insertionIndex}"]`)?.focus();
 }
 
 function showLoadError(error: unknown): void {
@@ -322,21 +352,22 @@ function showLoadError(error: unknown): void {
 }
 
 async function loadGame(): Promise<void> {
+  if (loadPending) return loadPending;
+  loadPending = initializeGame().finally(() => { loadPending = null; });
+  return loadPending;
+}
+
+async function initializeGame(): Promise<void> {
   loadingState.hidden = false;
   errorState.hidden = true;
   gameContent.hidden = true;
   try {
-    const [playersResponse, graphResponse] = await Promise.all([
-      fetch("./data/players.json", { cache: "no-cache" }),
-      fetch("./data/link_graph.json", { cache: "no-cache" }),
-    ]);
-    if (!playersResponse.ok || !graphResponse.ok) throw new Error("无法读取本地关系数据。请重新构建并刷新页面。");
-    const playersData = await playersResponse.json() as PlayersData;
-    const graphData = await graphResponse.json() as LinkGraphData;
+    const { players: playersData, graph: graphData, evidence } = await loadSnapshot();
     if (playersData.dataVersion !== graphData.dataVersion) throw new Error("选手与图谱数据版本不一致。请重新构建。");
     players = playersData.players;
     playerById = new Map(players.map((player) => [player.id, player]));
     graph = graphData;
+    loadEvidence = evidence; evidenceData = null;
     loadingState.hidden = true;
     gameContent.hidden = false;
     dataNote.textContent = `数据版本 ${graph.dataVersion} · ${graph.stats.playerCount} 位选手 · ${graph.stats.edgeCount} 条队友关系 · 关系只依据同赛季同俱乐部记录`;
@@ -353,6 +384,7 @@ clearButton.addEventListener("click", () => {
   currentPath = [question.startId, question.targetId];
   resetFeedback();
   renderPath();
+  pathBoard.querySelector<HTMLElement>('[data-insert-index]')?.focus();
 });
 nextButton.addEventListener("click", () => newQuestion(true));
 retryButton.addEventListener("click", () => void loadGame());
@@ -362,7 +394,7 @@ playerSearch.addEventListener("keydown", (event) => {
     event.preventDefault();
     const change = event.key === "ArrowDown" ? 1 : -1;
     activeSuggestion = (activeSuggestion + change + visibleSuggestions.length) % Math.max(visibleSuggestions.length, 1);
-    renderSuggestions();
+    updateActiveSuggestion();
   } else if (event.key === "Enter" && activeSuggestion >= 0) {
     event.preventDefault();
     const player = visibleSuggestions[activeSuggestion];
@@ -371,6 +403,11 @@ playerSearch.addEventListener("keydown", (event) => {
     playerDialog.close();
   }
 });
+playerOptions.addEventListener('click', event => {
+  const button = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-player-id]') : null;
+  if (button) choosePlayer(button.dataset.playerId ?? '');
+});
+playerDialog.addEventListener('close', () => { if (searchInvoker?.isConnected) searchInvoker.focus(); });
 required<HTMLButtonElement>("#close-player-dialog").addEventListener("click", () => playerDialog.close());
 required<HTMLButtonElement>("#rules-button").addEventListener("click", () => rulesDialog.showModal());
 required<HTMLButtonElement>("#close-rules-dialog").addEventListener("click", () => rulesDialog.close());

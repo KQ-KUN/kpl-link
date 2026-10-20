@@ -1,3 +1,4 @@
+import { fullGraph } from './snapshot-fixture.ts';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
@@ -58,7 +59,7 @@ test("path validation reports every broken segment by index", () => {
 });
 
 test("real snapshot accepts Cat and Fly as direct historical teammates", () => {
-  const realGraph = JSON.parse(readFileSync(new URL("../public/data/link_graph.json", import.meta.url), "utf8")) as LinkGraphData;
+  const realGraph = fullGraph();
   const players = JSON.parse(readFileSync(new URL("../public/data/players.json", import.meta.url), "utf8")) as {
     players: Array<{ id: string; name: string }>;
   };
@@ -74,7 +75,7 @@ test("real snapshot accepts Cat and Fly as direct historical teammates", () => {
 });
 
 test("annual registered teammates include loans and reserves", () => {
-  const snapshot = JSON.parse(readFileSync(new URL("../public/data/link_graph.json", import.meta.url), "utf8")) as LinkGraphData;
+  const snapshot = fullGraph();
   const players = JSON.parse(readFileSync(new URL("../public/data/players.json", import.meta.url), "utf8")) as {
     players: Array<{ id: string; name: string; recentTeamId: string }>;
   };
