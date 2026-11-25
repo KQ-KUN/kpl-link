@@ -16,7 +16,7 @@ export function singleFlight<T>(load: () => Promise<T>): () => Promise<T> {
 export async function checkedJson<T>(path: string, manifest: SnapshotManifest, fetcher = fetch): Promise<T> {
   const contract = manifest.outputs.find(item => item.path === `public/data/${path}`);
   if (!contract) throw new Error(`快照缺少资源契约：${path}`);
-  const response = await fetcher(`./data/${path}`, { cache: 'no-cache' });
+  const response = await fetcher(`./data/${path}`, { cache: 'no-cache', signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new Error(`资料加载失败 (${response.status})，可以重试`);
   const buffer = await response.arrayBuffer();
   const sha256 = [...new Uint8Array(await crypto.subtle.digest('SHA-256', buffer))].map(value => value.toString(16).padStart(2, '0')).join('');
@@ -27,7 +27,7 @@ export async function checkedJson<T>(path: string, manifest: SnapshotManifest, f
 }
 
 export async function loadSnapshot(fetcher = fetch): Promise<{ players: PlayersData; graph: LinkGraphData; evidence: () => Promise<EvidenceData> }> {
-  const response = await fetcher('./data/manifest.json', { cache: 'no-cache' });
+  const response = await fetcher('./data/manifest.json', { cache: 'no-cache', signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new Error('无法读取快照清单，请重试');
   const manifest = await response.json() as SnapshotManifest;
   if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.outputs) || typeof manifest.dataVersion !== 'string') throw new Error('快照清单无效');

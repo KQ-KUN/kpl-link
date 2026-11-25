@@ -38,7 +38,8 @@ test('singleflight shares in-flight and successful values; rejected attempts rem
 
 test('startup skips evidence, evidence is lazy and retries without reloading core', async () => {
   const requests: string[] = []; let fail = true;
-  const fetcher = (async (url: string | URL | Request) => {
+  const fetcher = (async (url: string | URL | Request, options?: RequestInit) => {
+    assert.ok(options?.signal instanceof AbortSignal);
     const path = String(url); requests.push(path);
     if (path.endsWith('link_evidence.json') && fail) { fail = false; return new Response('offline', { status: 503 }); }
     return new Response(readFileSync(new URL(`../public/${path.slice(2)}`, import.meta.url)), { headers: { 'content-type': 'application/json' } });

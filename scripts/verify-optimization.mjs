@@ -93,6 +93,35 @@ try {
   await faultPage.locator('#game-content').waitFor(); assert.equal(graphAttempts, 2);
   report.checks.push('核心JSON伪装HTML时禁止进入；连续点击重试共享单次核心加载并恢复');
   await faultContext.close();
+  const raceContext = await browser.newContext();
+  let startEvidence, finishEvidence, evidenceRequests = 0;
+  const started = new Promise(resolve => { startEvidence = resolve; });
+  const release = new Promise(resolve => { finishEvidence = resolve; });
+  try {
+    await raceContext.route('**/*', async route => {
+      const url = new URL(route.request().url());
+      if (url.hostname !== '127.0.0.1' || url.pathname.includes('/__event/')) return route.abort();
+      if (url.pathname.endsWith('link_evidence.json')) { evidenceRequests++; startEvidence(); await release; }
+      return route.continue();
+    });
+    const page = await raceContext.newPage();
+    await page.goto(`${server.url}/after/`);
+    await page.locator('#submit-path').click();
+    await page.locator('[data-action=evidence]').click();
+    await started;
+    await page.locator('#next-question').click();
+    await page.locator('#submit-path').click();
+    const evidenceButton = page.locator('[data-action=evidence]');
+    assert.equal(await evidenceButton.isEnabled(), true);
+    await page.locator('[data-action=reveal]').click();
+    finishEvidence();
+    await page.locator('.evidence-list').waitFor();
+    assert.equal(evidenceRequests, 1);
+    report.checks.push('旧题证据未返回时换题，新题可以查看答案和证据，两题共享一次请求');
+  } finally {
+    finishEvidence();
+    await raceContext.close();
+  }
   assert.deepEqual(report.pageErrors, []);
   report.checks.push('390/1440px × light/dark，390px reduced-motion，真实键盘增删/焦点/滚动，无水平溢出；箭头更新0childList，DOM节点保持');
 } catch (error) { report.failure = error.stack; process.exitCode = 1; }

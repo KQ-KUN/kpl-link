@@ -67,7 +67,7 @@ function getPlayer(playerId: string): LinkPlayer {
 }
 
 function resetFeedback(): void {
-  evidenceRequested = false; evidenceError = '';
+  evidenceRequested = false; evidenceLoading = false; evidenceError = '';
   submission = null;
   revealedPath = null;
   resultPanel.hidden = true;
@@ -275,12 +275,22 @@ function handleResultAction(action: string): void {
 }
 
 async function requestEvidence(): Promise<void> {
-  if (!loadEvidence) return;
+  const readEvidence = loadEvidence;
+  if (!readEvidence || evidenceLoading) return;
   const requestedQuestion = question;
   evidenceRequested = true; evidenceLoading = true; evidenceError = ''; renderResult();
-  try { evidenceData = await loadEvidence(); }
-  catch (error) { if (question === requestedQuestion) evidenceError = error instanceof Error ? error.message : '详细证据暂不可用，可以重试'; }
-  finally { evidenceLoading = false; if (question === requestedQuestion && submission) renderResult(); }
+  const isCurrent = () => readEvidence === loadEvidence && question === requestedQuestion && evidenceRequested;
+  try {
+    const evidence = await readEvidence();
+    if (readEvidence === loadEvidence) evidenceData = evidence;
+  } catch (error) {
+    if (isCurrent()) evidenceError = error instanceof Error ? error.message : '详细证据暂不可用，可以重试';
+  } finally {
+    if (isCurrent()) {
+      evidenceLoading = false;
+      if (submission) renderResult();
+    }
+  }
 }
 
 function submitPath(): void {
